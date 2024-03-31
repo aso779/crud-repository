@@ -1,0 +1,64 @@
+linters-settings:
+  gosimple:
+    go: "1.20"
+    checks: [ "all" ]
+  errcheck:
+    check-type-assertions: true
+
+linters:
+  disable-all: true
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - containedctx
+    - contextcheck
+    - decorder
+    - dogsled
+    - errcheck
+    - durationcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exportloopref
+    - forcetypeassert
+    - gocritic
+    - godot
+    - goerr113
+    - gomnd
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - gosmopolitan
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - loggercheck
+    - misspell
+    - musttag
+    - paralleltest
+    - prealloc
+    - predeclared
+    - promlinter
+    - reassign
+    - rowserrcheck
+    - sqlclosecheck
+    - thelper
+    - unconvert
+    - usestdlibvars
+    - typecheck
+    - wrapcheck
+    - wsl
+    - whitespace
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 4
+
+run:
+  concurrency: 4
+  tests: true
+  issues-exit-code: 1
+  go: '1.20'

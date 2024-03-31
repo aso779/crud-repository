@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"crud-repository/connection"
+	"fmt"
 	"strings"
 
 	"github.com/aso779/go-ddd/domain/usecase/dataset"
@@ -46,10 +47,10 @@ func (r BunCrudRepository[E, T]) FindOne(
 	err := query.Scan(ctx)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("find one: %w", err)
 	}
 
-	return &entity, err
+	return &entity, nil
 }
 
 // TODO field instead column ?
@@ -58,11 +59,14 @@ func (r BunCrudRepository[E, T]) FindOneByPk(
 	ctx context.Context,
 	tx bun.IDB,
 	columns []string,
-	pk metadata.PrimaryKey, // TODO must be slice ?
+	pk metadata.PrimaryKey,
 ) (*E, error) {
 	spec := dataspec.NewAnd()
-	for k, v := range pk {
-		spec.Append(dataspec.NewEqual(k, v))
+
+	for _, v := range pk.Sorted() {
+		for kk, vv := range v {
+			spec.Append(dataspec.NewEqual(kk, vv))
+		}
 	}
 
 	return r.FindOne(ctx, tx, columns, spec)
@@ -96,8 +100,11 @@ func (r BunCrudRepository[E, T]) FindAll(
 	}
 
 	err := query.Scan(ctx)
+	if err != nil {
+		return entities, fmt.Errorf("find all: %w", err)
+	}
 
-	return entities, err
+	return entities, nil
 }
 
 // TODO field instead column ?
@@ -139,8 +146,11 @@ func (r BunCrudRepository[E, T]) FindPage(
 	}
 
 	err := query.Scan(ctx)
+	if err != nil {
+		return entities, fmt.Errorf("find page: %w", err)
+	}
 
-	return entities, err
+	return entities, nil
 }
 
 // TODO field instead column ?
@@ -161,17 +171,19 @@ func (r BunCrudRepository[E, T]) FindAllByPks(
 	for i, pk := range pks {
 		if i == 0 {
 			isComposite = pk.IsComposite()
-			keys = pk.Keys()
+			keys = pk.SortedKeys()
 		}
 
 		if isComposite {
 			var valuesGroup []any
 
-			for _, vv := range pk {
-				valuesGroup = append(valuesGroup, vv)
+			for _, vv := range pk.Sorted() {
+				for _, vvv := range vv {
+					valuesGroup = append(valuesGroup, vvv)
+				}
 			}
 
-			values = append(values, valuesGroup)
+			values = append(values, valuesGroup) // nolint:asasalint
 		} else {
 			for _, vv := range pk {
 				values = append(values, vv)
@@ -211,7 +223,12 @@ func (r BunCrudRepository[E, T]) Count(
 		query.Where(spec.Query(r.Meta), spec.Values()...)
 	}
 
-	return query.Count(ctx)
+	count, err := query.Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("count: %w", err)
+	}
+
+	return count, nil
 }
 
 // TODO field instead column ?
@@ -231,7 +248,11 @@ func (r BunCrudRepository[E, T]) CreateOne(
 		Returning(strings.Join(columns, ",")).
 		Exec(ctx)
 
-	return entity, err
+	if err != nil {
+		return nil, fmt.Errorf("crate one: %w", err)
+	}
+
+	return entity, nil
 }
 
 // TODO field instead column ?
@@ -251,7 +272,11 @@ func (r BunCrudRepository[E, T]) CreateAll(
 		Returning(strings.Join(columns, ",")).
 		Exec(ctx)
 
-	return entities, err
+	if err != nil {
+		return entities, fmt.Errorf("create one: %w", err)
+	}
+
+	return entities, nil
 }
 
 // TODO field instead column ?
@@ -260,6 +285,7 @@ func (r BunCrudRepository[E, T]) UpdateOne(
 	ctx context.Context,
 	tx bun.IDB,
 	entity *E,
+	columnsToUpdate []string,
 	columns []string,
 ) (*E, error) {
 	if tx == nil {
@@ -268,11 +294,16 @@ func (r BunCrudRepository[E, T]) UpdateOne(
 
 	_, err := tx.NewUpdate().
 		Model(entity).
+		Column(columnsToUpdate...).
 		WherePK().
 		Returning(strings.Join(columns, ",")).
 		Exec(ctx)
 
-	return entity, err
+	if err != nil {
+		return entity, fmt.Errorf("update one: %w", err)
+	}
+
+	return entity, nil
 }
 
 func (r BunCrudRepository[E, T]) ForceDelete(
@@ -295,7 +326,7 @@ func (r BunCrudRepository[E, T]) ForceDelete(
 
 	res, err := query.Exec(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("force delete: %w", err)
 	}
 
 	rows, err := res.RowsAffected()
@@ -322,7 +353,7 @@ func (r BunCrudRepository[E, T]) Delete(
 
 	res, err := query.Exec(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("delete: %w", err)
 	}
 
 	rows, err := res.RowsAffected()
@@ -349,7 +380,7 @@ func (r BunCrudRepository[E, T]) IsColumnValueUnique(
 		Where(column+" = ?", value).
 		Exists(ctx)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("is column value unique: %w", err)
 	}
 
 	return exists, nil

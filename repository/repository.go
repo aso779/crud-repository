@@ -70,6 +70,7 @@ type CrudRepository[E metadata.Entity, T bun.Tx] interface {
 		ctx context.Context,
 		tx bun.IDB,
 		entity *E,
+		columnsToUpdate []string,
 		columns []string,
 	) (*E, error)
 

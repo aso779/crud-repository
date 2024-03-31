@@ -29,7 +29,7 @@ type MockBunConnSet struct {
 func NewMockBunConnSet() (*MockBunConnSet, error) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
-		return nil, err
+		return nil, err //nolint:wrapcheck
 	}
 
 	return &MockBunConnSet{
@@ -71,9 +71,10 @@ func (r TestSimpleEnt) PrimaryKey() metadata.PrimaryKey {
 type TestComplexEnt struct {
 	bun.BaseModel `bun:"table:test_complex_entities,alias:test_complex_entities"`
 
-	FirstID  int    `bun:"first_id,pk" json:"firstId"`
-	SecondID int    `bun:"second_id,pk" json:"secondId"`
-	Name     string `bun:"complex_name" json:"complexName"`
+	FirstID     int    `bun:"first_id,pk" json:"firstId"`
+	SecondID    int    `bun:"second_id,pk" json:"secondId"`
+	Name        string `bun:"complex_name" json:"complexName"`
+	Description string `bun:"complex_description" json:"complexDescription"`
 }
 
 func (r TestComplexEnt) EntityName() string {
@@ -140,7 +141,6 @@ type TestSimpleEntBunRepo struct {
 func NewTestSimpleEntRepository(
 	connSet connection.BunConnSet,
 ) *TestSimpleEntBunRepo {
-
 	c := NewEntities()
 
 	return &TestSimpleEntBunRepo{
@@ -158,7 +158,6 @@ type TestComplexEntBunRepo struct {
 func NewTestComplexEntRepository(
 	connSet connection.BunConnSet,
 ) *TestComplexEntBunRepo {
-
 	c := NewEntities()
 
 	return &TestComplexEntBunRepo{
@@ -176,7 +175,6 @@ type TestSoftDeleteEntBunRepo struct {
 func NewTestSoftDeleteEntRepository(
 	connSet connection.BunConnSet,
 ) *TestSoftDeleteEntBunRepo {
-
 	c := NewEntities()
 
 	return &TestSoftDeleteEntBunRepo{
@@ -187,7 +185,7 @@ func NewTestSoftDeleteEntRepository(
 	}
 }
 
-// TODO move to src
+// TODO move to src.
 func NewPager(
 	size int,
 	number int,
@@ -272,6 +270,8 @@ func crudRepositoryShortTestSetUp(
 }
 
 func TestBunCrudRepository_FindOne(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
@@ -286,6 +286,7 @@ func TestBunCrudRepository_FindOne(t *testing.T) {
 				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\"$").WillReturnRows(rows)
 			},
 			expected: func(t *testing.T, res *TestSimpleEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 				assert.NotNil(t, res)
 			},
@@ -299,6 +300,7 @@ func TestBunCrudRepository_FindOne(t *testing.T) {
 				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\"$").WillReturnRows(rows)
 			},
 			expected: func(t *testing.T, res *TestSimpleEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 				assert.NotNil(t, res)
 			},
@@ -310,6 +312,7 @@ func TestBunCrudRepository_FindOne(t *testing.T) {
 				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\"$").WillReturnRows(rows)
 			},
 			expected: func(t *testing.T, res *TestSimpleEnt, err error) {
+				t.Helper()
 				assert.ErrorIs(t, err, sql.ErrNoRows)
 				assert.Nil(t, res)
 			},
@@ -317,25 +320,33 @@ func TestBunCrudRepository_FindOne(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestSimpleEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
 
 			res, err := repo.FindOne(context.Background(), nil, []string{"*"}, nil)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_FindOneByPk(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
 		expected func(t *testing.T, res *TestComplexEnt, err error)
 	}{
+		// TODO pass
 		{
 			name: "find one by composite pk with single row result",
 			mock: func(conn *MockBunConnSet) {
@@ -345,6 +356,7 @@ func TestBunCrudRepository_FindOneByPk(t *testing.T) {
 					WillReturnRows(rows)
 			},
 			expected: func(t *testing.T, res *TestComplexEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 				assert.NotNil(t, res)
 			},
@@ -359,27 +371,31 @@ func TestBunCrudRepository_FindOneByPk(t *testing.T) {
 					WillReturnRows(rows)
 			},
 			expected: func(t *testing.T, res *TestComplexEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 				assert.NotNil(t, res)
 			},
 		},
-		// TODO pass
-		//{
-		//	name: "find one by composite pk with err no rows",
-		//	mock: func(conn *MockBunConnSet) {
-		//		rows := sqlmock.NewRows([]string{"first_id", "second_id"})
-		//		conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_complex_entities\" WHERE \\(\\(test_complex_entities.first_id = 1 AND test_complex_entities.second_id = 2\\)\\)$").
-		//			WillReturnRows(rows)
-		//	},
-		//	expected: func(t *testing.T, res *TestComplexEnt, err error) {
-		//		assert.ErrorIs(t, err, sql.ErrNoRows)
-		//		assert.Nil(t, res)
-		//	},
-		//},
+		{
+			name: "find one by composite pk with err no rows",
+			mock: func(conn *MockBunConnSet) {
+				rows := sqlmock.NewRows([]string{"first_id", "second_id"})
+				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_complex_entities\" WHERE \\(\\(test_complex_entities.first_id = 1 AND test_complex_entities.second_id = 2\\)\\)$").
+					WillReturnRows(rows)
+			},
+			expected: func(t *testing.T, res *TestComplexEnt, err error) {
+				t.Helper()
+				assert.ErrorIs(t, err, sql.ErrNoRows)
+				assert.Nil(t, res)
+			},
+		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestComplexEntRepository(subject.conn)
 
@@ -388,13 +404,17 @@ func TestBunCrudRepository_FindOneByPk(t *testing.T) {
 			res, err := repo.FindOneByPk(
 				context.Background(), nil, []string{"*"}, metadata.PrimaryKey{"firstId": 1, "secondId": 2},
 			)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_FindAll(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
@@ -410,6 +430,7 @@ func TestBunCrudRepository_FindAll(t *testing.T) {
 				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\"$").WillReturnRows(rows)
 			},
 			expected: func(t *testing.T, res []TestSimpleEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 				assert.NotEmpty(t, res)
 				assert.Equal(t, 1, len(res))
@@ -424,6 +445,7 @@ func TestBunCrudRepository_FindAll(t *testing.T) {
 				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\"$").WillReturnRows(rows)
 			},
 			expected: func(t *testing.T, res []TestSimpleEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 				assert.NotEmpty(t, res)
 				assert.Equal(t, 2, len(res))
@@ -436,6 +458,7 @@ func TestBunCrudRepository_FindAll(t *testing.T) {
 					WillReturnError(sql.ErrNoRows)
 			},
 			expected: func(t *testing.T, res []TestSimpleEnt, err error) {
+				t.Helper()
 				assert.ErrorIs(t, err, sql.ErrNoRows)
 				assert.Empty(t, res)
 			},
@@ -447,6 +470,7 @@ func TestBunCrudRepository_FindAll(t *testing.T) {
 					WillReturnError(sql.ErrNoRows)
 			},
 			expected: func(t *testing.T, res []TestSimpleEnt, err error) {
+				t.Helper()
 				assert.ErrorIs(t, err, sql.ErrNoRows)
 				assert.Empty(t, res)
 			},
@@ -457,25 +481,32 @@ func TestBunCrudRepository_FindAll(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestSimpleEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
 
 			res, err := repo.FindAll(context.Background(), nil, []string{"*"}, tt.spec)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_FindPage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
 		page     func() dataset.Pager
-		sort     func() Sort
+		sort     Sort
 		expected func(t *testing.T, res []TestSimpleEnt, err error)
 	}{
 		{
@@ -490,10 +521,9 @@ func TestBunCrudRepository_FindPage(t *testing.T) {
 			page: func() dataset.Pager {
 				return NewPager(5, 0)
 			},
-			sort: func() Sort {
-				return NewSorter()
-			},
+			sort: NewSorter(),
 			expected: func(t *testing.T, res []TestSimpleEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 				assert.NotEmpty(t, res)
 				assert.Equal(t, 1, len(res))
@@ -515,10 +545,9 @@ func TestBunCrudRepository_FindPage(t *testing.T) {
 			page: func() dataset.Pager {
 				return NewPager(5, 0)
 			},
-			sort: func() Sort {
-				return NewSorter()
-			},
+			sort: NewSorter(),
 			expected: func(t *testing.T, res []TestSimpleEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 				assert.NotEmpty(t, res)
 				assert.Equal(t, 5, len(res))
@@ -540,10 +569,9 @@ func TestBunCrudRepository_FindPage(t *testing.T) {
 			page: func() dataset.Pager {
 				return NewPager(5, 0)
 			},
-			sort: func() Sort {
-				return NewSorter().WithSort("name", "DESC")
-			},
+			sort: NewSorter().WithSort("name", "DESC"),
 			expected: func(t *testing.T, res []TestSimpleEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 				assert.NotEmpty(t, res)
 				assert.Equal(t, 5, len(res))
@@ -552,41 +580,54 @@ func TestBunCrudRepository_FindPage(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestSimpleEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
 
-			res, err := repo.FindPage(context.Background(), nil, []string{"*"}, nil, tt.page(), tt.sort())
+			res, err := repo.FindPage(context.Background(), nil, []string{"*"}, nil, tt.page(), tt.sort)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_FindAllByPks(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
 		expected func(t *testing.T, res []TestComplexEnt, err error)
 	}{
-		// TODO pass
-		//{
-		//	name: "find all by primary keys with single row result",
-		//	mock: func(conn *MockBunConnSet) {
-		//		rows := sqlmock.NewRows([]string{"first_id", "second_id"}).
-		//			AddRow(1, 2).
-		//			AddRow(3, 4)
-		//
-		//		conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_complex_entities\" WHERE \\(\\(test_complex_entities\\.first_id,test_complex_entities\\.second_id\\) IN \\(\\(1, 2\\), \\(3, 4\\)\\)\\)$").
-		//			WillReturnRows(rows)
-		//	},
-		//},
+		{
+			name: "find all by primary keys with single row result",
+			mock: func(conn *MockBunConnSet) {
+				rows := sqlmock.NewRows([]string{"first_id", "second_id"}).
+					AddRow(1, 2).
+					AddRow(3, 4)
+
+				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_complex_entities\" WHERE \\(\\(test_complex_entities\\.first_id,test_complex_entities\\.second_id\\) IN \\(\\(1, 2\\), \\(3, 4\\)\\)\\)$").
+					WillReturnRows(rows)
+			},
+			expected: func(t *testing.T, res []TestComplexEnt, err error) {
+				t.Helper()
+				assert.NoError(t, err)
+			},
+		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestComplexEntRepository(subject.conn)
 
@@ -602,13 +643,17 @@ func TestBunCrudRepository_FindAllByPks(t *testing.T) {
 					"secondId": 4,
 				},
 			})
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_Count(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
@@ -627,6 +672,7 @@ func TestBunCrudRepository_Count(t *testing.T) {
 				return nil
 			}(),
 			expected: func(t *testing.T, res int, err error) {
+				t.Helper()
 				assert.Equal(t, 2, res)
 			},
 		},
@@ -642,26 +688,34 @@ func TestBunCrudRepository_Count(t *testing.T) {
 				return dataspec.NewEqual("name", "John")
 			}(),
 			expected: func(t *testing.T, res int, err error) {
+				t.Helper()
 				assert.Equal(t, 2, res)
 			},
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestSimpleEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
 
 			res, err := repo.Count(context.Background(), nil, tt.spec)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_CreateOne(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
@@ -683,6 +737,7 @@ func TestBunCrudRepository_CreateOne(t *testing.T) {
 			},
 			columns: []string{"*"},
 			expected: func(t *testing.T, res *TestSimpleEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 				assert.Equal(t, 222, res.ID)
 				assert.Equal(t, "TestName", res.Name)
@@ -702,6 +757,7 @@ func TestBunCrudRepository_CreateOne(t *testing.T) {
 			},
 			columns: []string{"id", "name"},
 			expected: func(t *testing.T, res *TestSimpleEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 				assert.Equal(t, 222, res.ID)
 				assert.Equal(t, "TestName", res.Name)
@@ -710,20 +766,27 @@ func TestBunCrudRepository_CreateOne(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestSimpleEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
 
 			res, err := repo.CreateOne(context.Background(), nil, tt.entity, tt.columns)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_CreateAll(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
@@ -751,31 +814,40 @@ func TestBunCrudRepository_CreateAll(t *testing.T) {
 			},
 			columns: []string{"id", "name"},
 			expected: func(t *testing.T, res []TestSimpleEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 			},
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestSimpleEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
 			res, err := repo.CreateAll(context.Background(), nil, tt.entities, tt.columns)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_UpdateOneSimple(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name     string
-		mock     func(set *MockBunConnSet)
-		entity   *TestSimpleEnt
-		columns  []string
-		expected func(t *testing.T, res *TestSimpleEnt, err error)
+		name            string
+		mock            func(set *MockBunConnSet)
+		entity          *TestSimpleEnt
+		columnsToUpdate []string
+		columnsToReturn []string
+		expected        func(t *testing.T, res *TestSimpleEnt, err error)
 	}{
 		{
 			name: "update one",
@@ -789,33 +861,43 @@ func TestBunCrudRepository_UpdateOneSimple(t *testing.T) {
 				ID:   333,
 				Name: "updatedName",
 			},
-			columns: []string{"id", "name"},
+			columnsToUpdate: []string{"name"},
+			columnsToReturn: []string{"id", "name"},
 			expected: func(t *testing.T, res *TestSimpleEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 			},
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestSimpleEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
-			res, err := repo.UpdateOne(context.Background(), nil, tt.entity, tt.columns)
+			res, err := repo.UpdateOne(context.Background(), nil, tt.entity, tt.columnsToUpdate, tt.columnsToReturn)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_UpdateOneComplex(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name     string
-		mock     func(set *MockBunConnSet)
-		entity   *TestComplexEnt
-		columns  []string
-		expected func(t *testing.T, res *TestComplexEnt, err error)
+		name            string
+		mock            func(set *MockBunConnSet)
+		entity          *TestComplexEnt
+		columnsToUpdate []string
+		columnsToReturn []string
+		expected        func(t *testing.T, res *TestComplexEnt, err error)
 	}{
 		{
 			name: "update one",
@@ -830,27 +912,36 @@ func TestBunCrudRepository_UpdateOneComplex(t *testing.T) {
 				SecondID: 222,
 				Name:     "complex name",
 			},
-			columns: []string{"first_id", "second_id", "name"},
+			columnsToUpdate: []string{"complex_name"},
+			columnsToReturn: []string{"first_id", "second_id", "name"},
 			expected: func(t *testing.T, res *TestComplexEnt, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 			},
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestComplexEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
-			res, err := repo.UpdateOne(context.Background(), nil, tt.entity, tt.columns)
+			res, err := repo.UpdateOne(context.Background(), nil, tt.entity, tt.columnsToUpdate, tt.columnsToReturn)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_ForceDeleteWithSoftDeleteEntity(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
@@ -869,24 +960,32 @@ func TestBunCrudRepository_ForceDeleteWithSoftDeleteEntity(t *testing.T) {
 				return dataspec.NewEqual("id", 1)
 			}(),
 			expected: func(t *testing.T, res int, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 			},
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestSoftDeleteEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
 			res, err := repo.ForceDelete(context.Background(), nil, tt.spec)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_ForceDeleteWithSimpleEntity(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
@@ -905,24 +1004,32 @@ func TestBunCrudRepository_ForceDeleteWithSimpleEntity(t *testing.T) {
 				return dataspec.NewEqual("id", 1)
 			}(),
 			expected: func(t *testing.T, res int, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 			},
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestSimpleEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
 			res, err := repo.ForceDelete(context.Background(), nil, tt.spec)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_DeleteWithSoftDeleteEntity(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
@@ -941,24 +1048,32 @@ func TestBunCrudRepository_DeleteWithSoftDeleteEntity(t *testing.T) {
 				return dataspec.NewEqual("id", 1)
 			}(),
 			expected: func(t *testing.T, res int, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 			},
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestSoftDeleteEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
 			res, err := repo.Delete(context.Background(), nil, tt.spec)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_DeleteWithSimpleEntity(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
@@ -977,24 +1092,32 @@ func TestBunCrudRepository_DeleteWithSimpleEntity(t *testing.T) {
 				return dataspec.NewEqual("id", 1)
 			}(),
 			expected: func(t *testing.T, res int, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 			},
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestSimpleEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
 			res, err := repo.Delete(context.Background(), nil, tt.spec)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
 }
 
 func TestBunCrudRepository_IsColumnValueUnique(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mock     func(set *MockBunConnSet)
@@ -1013,6 +1136,7 @@ func TestBunCrudRepository_IsColumnValueUnique(t *testing.T) {
 			column: "name",
 			value:  "test",
 			expected: func(t *testing.T, res bool, err error) {
+				t.Helper()
 				assert.NoError(t, err)
 				assert.Equal(t, true, res)
 			},
@@ -1020,13 +1144,17 @@ func TestBunCrudRepository_IsColumnValueUnique(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			subject := crudRepositoryShortTestSetUp(t)
 			repo := NewTestSimpleEntRepository(subject.conn)
 
 			tt.mock(subject.conn)
 			res, err := repo.IsColumnValueUnique(context.Background(), nil, tt.column, tt.value)
+
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
 			tt.expected(t, res, err)
 		})
 	}
