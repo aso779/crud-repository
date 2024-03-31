@@ -16,6 +16,8 @@ type BunCrudRepository[E metadata.Entity, T bun.Tx] struct {
 	Meta    metadata.Meta
 }
 
+// TODO field instead column ?
+
 func (r BunCrudRepository[E, T]) FindOne(
 	ctx context.Context,
 	tx bun.IDB,
@@ -50,6 +52,8 @@ func (r BunCrudRepository[E, T]) FindOne(
 	return &entity, err
 }
 
+// TODO field instead column ?
+
 func (r BunCrudRepository[E, T]) FindOneByPk(
 	ctx context.Context,
 	tx bun.IDB,
@@ -63,6 +67,8 @@ func (r BunCrudRepository[E, T]) FindOneByPk(
 
 	return r.FindOne(ctx, tx, columns, spec)
 }
+
+// TODO field instead column ?
 
 func (r BunCrudRepository[E, T]) FindAll(
 	ctx context.Context,
@@ -93,6 +99,8 @@ func (r BunCrudRepository[E, T]) FindAll(
 
 	return entities, err
 }
+
+// TODO field instead column ?
 
 func (r BunCrudRepository[E, T]) FindPage(
 	ctx context.Context,
@@ -134,6 +142,8 @@ func (r BunCrudRepository[E, T]) FindPage(
 
 	return entities, err
 }
+
+// TODO field instead column ?
 
 func (r BunCrudRepository[E, T]) FindAllByPks(
 	ctx context.Context,
@@ -204,6 +214,8 @@ func (r BunCrudRepository[E, T]) Count(
 	return query.Count(ctx)
 }
 
+// TODO field instead column ?
+
 func (r BunCrudRepository[E, T]) CreateOne(
 	ctx context.Context,
 	tx bun.IDB,
@@ -222,6 +234,8 @@ func (r BunCrudRepository[E, T]) CreateOne(
 	return entity, err
 }
 
+// TODO field instead column ?
+
 func (r BunCrudRepository[E, T]) CreateAll(
 	ctx context.Context,
 	tx bun.IDB,
@@ -233,12 +247,14 @@ func (r BunCrudRepository[E, T]) CreateAll(
 	}
 
 	_, err := tx.NewInsert().
-		Model(entities).
+		Model(&entities).
 		Returning(strings.Join(columns, ",")).
 		Exec(ctx)
 
 	return entities, err
 }
+
+// TODO field instead column ?
 
 func (r BunCrudRepository[E, T]) UpdateOne(
 	ctx context.Context,
@@ -313,6 +329,8 @@ func (r BunCrudRepository[E, T]) Delete(
 
 	return int(rows), err
 }
+
+// TODO field instead column ?
 
 func (r BunCrudRepository[E, T]) IsColumnValueUnique(
 	ctx context.Context,

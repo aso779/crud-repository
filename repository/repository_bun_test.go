@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/aso779/go-ddd/domain/usecase/dataset"
@@ -55,7 +56,7 @@ func (r *MockBunConnSet) connect() *bun.DB {
 type TestSimpleEnt struct {
 	bun.BaseModel `bun:"table:test_simple_entities,alias:test_simple_entities"`
 
-	ID   int    `bun:"id" json:"id"`
+	ID   int    `bun:"id,pk" json:"id"`
 	Name string `bun:"name" json:"name"`
 }
 
@@ -70,8 +71,9 @@ func (r TestSimpleEnt) PrimaryKey() metadata.PrimaryKey {
 type TestComplexEnt struct {
 	bun.BaseModel `bun:"table:test_complex_entities,alias:test_complex_entities"`
 
-	FirstID  int `bun:"first_id" json:"firstId"`
-	SecondID int `bun:"second_id" json:"secondId"`
+	FirstID  int    `bun:"first_id,pk" json:"firstId"`
+	SecondID int    `bun:"second_id,pk" json:"secondId"`
+	Name     string `bun:"complex_name" json:"complexName"`
 }
 
 func (r TestComplexEnt) EntityName() string {
@@ -80,6 +82,22 @@ func (r TestComplexEnt) EntityName() string {
 
 func (r TestComplexEnt) PrimaryKey() metadata.PrimaryKey {
 	return metadata.PrimaryKey{"firstId": r.FirstID, "secondId": r.SecondID}
+}
+
+type TestSoftDeleteEnt struct {
+	bun.BaseModel `bun:"table:test_soft_delete_entities,alias:test_soft_delete_entities"`
+
+	ID        int       `bun:"id,pk" json:"id"`
+	Name      string    `bun:"name" json:"name"`
+	DeletedAt time.Time `bun:"deleted_at,soft_delete,nullzero" json:"deletedAt"`
+}
+
+func (r TestSoftDeleteEnt) EntityName() string {
+	return "TestSoftDeleteEnt"
+}
+
+func (r TestSoftDeleteEnt) PrimaryKey() metadata.PrimaryKey {
+	return metadata.PrimaryKey{"id": r.ID}
 }
 
 type TestSimpleEntMeta struct {
@@ -98,10 +116,19 @@ func (r TestComplexEntMeta) Entity() metadata.Entity { return r.TestComplexEnt }
 
 func (r TestComplexEntMeta) Relations() (relations map[string]metadata.Relation) { return }
 
+type TestSoftDeleteEntMeta struct {
+	TestSoftDeleteEnt
+}
+
+func (r TestSoftDeleteEntMeta) Entity() metadata.Entity { return r.TestSoftDeleteEnt }
+
+func (r TestSoftDeleteEntMeta) Relations() (relations map[string]metadata.Relation) { return }
+
 func NewEntities() metadata.EntityMetaContainer {
 	c := entmeta.NewContainer()
 	c.Add(TestSimpleEntMeta{}, meta.Parser)
 	c.Add(TestComplexEntMeta{}, meta.Parser)
+	c.Add(TestSoftDeleteEntMeta{}, meta.Parser)
 
 	return c
 }
@@ -138,6 +165,24 @@ func NewTestComplexEntRepository(
 		BunCrudRepository[TestComplexEnt, bun.Tx]{
 			connSet: connSet,
 			Meta:    c.Get(TestComplexEnt{}.EntityName()),
+		},
+	}
+}
+
+type TestSoftDeleteEntBunRepo struct {
+	BunCrudRepository[TestSoftDeleteEnt, bun.Tx]
+}
+
+func NewTestSoftDeleteEntRepository(
+	connSet connection.BunConnSet,
+) *TestSoftDeleteEntBunRepo {
+
+	c := NewEntities()
+
+	return &TestSoftDeleteEntBunRepo{
+		BunCrudRepository[TestSoftDeleteEnt, bun.Tx]{
+			connSet: connSet,
+			Meta:    c.Get(TestSoftDeleteEnt{}.EntityName()),
 		},
 	}
 }
@@ -387,7 +432,8 @@ func TestBunCrudRepository_FindAll(t *testing.T) {
 		{
 			name: "find all with err no rows",
 			mock: func(conn *MockBunConnSet) {
-				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\"$").WillReturnError(sql.ErrNoRows)
+				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\"$").
+					WillReturnError(sql.ErrNoRows)
 			},
 			expected: func(t *testing.T, res []TestSimpleEnt, err error) {
 				assert.ErrorIs(t, err, sql.ErrNoRows)
@@ -397,7 +443,8 @@ func TestBunCrudRepository_FindAll(t *testing.T) {
 		{
 			name: "find all with err no rows and spec",
 			mock: func(conn *MockBunConnSet) {
-				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\" WHERE \\(test_simple_entities\\.name = 'John'\\)$").WillReturnError(sql.ErrNoRows)
+				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\" WHERE \\(test_simple_entities\\.name = 'John'\\)$").
+					WillReturnError(sql.ErrNoRows)
 			},
 			expected: func(t *testing.T, res []TestSimpleEnt, err error) {
 				assert.ErrorIs(t, err, sql.ErrNoRows)
@@ -437,7 +484,8 @@ func TestBunCrudRepository_FindPage(t *testing.T) {
 				rows := sqlmock.NewRows([]string{"id", "name"}).
 					AddRow(1, "testName1")
 
-				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\" LIMIT 5$").WillReturnRows(rows)
+				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\" LIMIT 5$").
+					WillReturnRows(rows)
 			},
 			page: func() dataset.Pager {
 				return NewPager(5, 0)
@@ -461,7 +509,8 @@ func TestBunCrudRepository_FindPage(t *testing.T) {
 					AddRow(4, "testName4").
 					AddRow(5, "testName5")
 
-				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\" LIMIT 5$").WillReturnRows(rows)
+				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\" LIMIT 5$").
+					WillReturnRows(rows)
 			},
 			page: func() dataset.Pager {
 				return NewPager(5, 0)
@@ -485,7 +534,8 @@ func TestBunCrudRepository_FindPage(t *testing.T) {
 					AddRow(4, "testName4").
 					AddRow(5, "testName5")
 
-				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\" ORDER BY name DESC LIMIT 5$").WillReturnRows(rows)
+				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_simple_entities\" ORDER BY name DESC LIMIT 5$").
+					WillReturnRows(rows)
 			},
 			page: func() dataset.Pager {
 				return NewPager(5, 0)
@@ -552,6 +602,430 @@ func TestBunCrudRepository_FindAllByPks(t *testing.T) {
 					"secondId": 4,
 				},
 			})
+			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+			tt.expected(t, res, err)
+		})
+	}
+}
+
+func TestBunCrudRepository_Count(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     func(set *MockBunConnSet)
+		spec     dataset.Specifier
+		expected func(t *testing.T, res int, err error)
+	}{
+		{
+			name: "count",
+			mock: func(conn *MockBunConnSet) {
+				rows := sqlmock.NewRows([]string{"count"}).AddRow(2)
+
+				conn.Mock.ExpectQuery("^SELECT count\\(\\*\\) FROM \"test_simple_entities\"$").
+					WillReturnRows(rows)
+			},
+			spec: func() dataset.Specifier {
+				return nil
+			}(),
+			expected: func(t *testing.T, res int, err error) {
+				assert.Equal(t, 2, res)
+			},
+		},
+		{
+			name: "count with spec",
+			mock: func(conn *MockBunConnSet) {
+				rows := sqlmock.NewRows([]string{"count"}).AddRow(2)
+
+				conn.Mock.ExpectQuery("^SELECT count\\(\\*\\) FROM \"test_simple_entities\" WHERE \\(test_simple_entities\\.name = 'John'\\)$").
+					WillReturnRows(rows)
+			},
+			spec: func() dataset.Specifier {
+				return dataspec.NewEqual("name", "John")
+			}(),
+			expected: func(t *testing.T, res int, err error) {
+				assert.Equal(t, 2, res)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subject := crudRepositoryShortTestSetUp(t)
+			repo := NewTestSimpleEntRepository(subject.conn)
+
+			tt.mock(subject.conn)
+
+			res, err := repo.Count(context.Background(), nil, tt.spec)
+			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+			tt.expected(t, res, err)
+		})
+	}
+}
+
+func TestBunCrudRepository_CreateOne(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     func(set *MockBunConnSet)
+		entity   *TestSimpleEnt
+		columns  []string
+		expected func(t *testing.T, res *TestSimpleEnt, err error)
+	}{
+		{
+			name: "create one",
+			mock: func(conn *MockBunConnSet) {
+				rows := sqlmock.NewRows([]string{"id", "name"}).AddRow(222, "TestName")
+
+				conn.Mock.ExpectQuery("^INSERT INTO \"test_simple_entities\" \\(\"id\", \"name\"\\) VALUES \\(0, 'TestName'\\) RETURNING \\*$").
+					WillReturnRows(rows)
+			},
+			entity: &TestSimpleEnt{
+				ID:   0,
+				Name: "TestName",
+			},
+			columns: []string{"*"},
+			expected: func(t *testing.T, res *TestSimpleEnt, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, 222, res.ID)
+				assert.Equal(t, "TestName", res.Name)
+			},
+		},
+		{
+			name: "create one with returning columns",
+			mock: func(conn *MockBunConnSet) {
+				rows := sqlmock.NewRows([]string{"id", "name"}).AddRow(222, "TestName")
+
+				conn.Mock.ExpectQuery("^INSERT INTO \"test_simple_entities\" \\(\"id\", \"name\"\\) VALUES \\(222, 'TestName'\\) RETURNING id,name$").
+					WillReturnRows(rows)
+			},
+			entity: &TestSimpleEnt{
+				ID:   222,
+				Name: "TestName",
+			},
+			columns: []string{"id", "name"},
+			expected: func(t *testing.T, res *TestSimpleEnt, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, 222, res.ID)
+				assert.Equal(t, "TestName", res.Name)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subject := crudRepositoryShortTestSetUp(t)
+			repo := NewTestSimpleEntRepository(subject.conn)
+
+			tt.mock(subject.conn)
+
+			res, err := repo.CreateOne(context.Background(), nil, tt.entity, tt.columns)
+			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+			tt.expected(t, res, err)
+		})
+	}
+}
+
+func TestBunCrudRepository_CreateAll(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     func(set *MockBunConnSet)
+		entities []TestSimpleEnt
+		columns  []string
+		expected func(t *testing.T, res []TestSimpleEnt, err error)
+	}{
+		{
+			name: "create all",
+			mock: func(conn *MockBunConnSet) {
+				rows := sqlmock.NewRows([]string{"id", "name"}).AddRow(1, "test1").AddRow(2, "test2")
+
+				conn.Mock.ExpectQuery("^INSERT INTO \"test_simple_entities\" \\(\"id\", \"name\"\\) VALUES \\(1, 'test1'\\), \\(2, 'test2'\\)  RETURNING id,name$").
+					WillReturnRows(rows)
+			},
+			entities: []TestSimpleEnt{
+				{
+					ID:   1,
+					Name: "test1",
+				},
+				{
+					ID:   2,
+					Name: "test2",
+				},
+			},
+			columns: []string{"id", "name"},
+			expected: func(t *testing.T, res []TestSimpleEnt, err error) {
+				assert.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subject := crudRepositoryShortTestSetUp(t)
+			repo := NewTestSimpleEntRepository(subject.conn)
+
+			tt.mock(subject.conn)
+			res, err := repo.CreateAll(context.Background(), nil, tt.entities, tt.columns)
+			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+			tt.expected(t, res, err)
+		})
+	}
+}
+
+func TestBunCrudRepository_UpdateOneSimple(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     func(set *MockBunConnSet)
+		entity   *TestSimpleEnt
+		columns  []string
+		expected func(t *testing.T, res *TestSimpleEnt, err error)
+	}{
+		{
+			name: "update one",
+			mock: func(conn *MockBunConnSet) {
+				rows := sqlmock.NewRows([]string{"id", "name"}).AddRow(1, "test1").AddRow(2, "test2")
+
+				conn.Mock.ExpectQuery("^UPDATE \"test_simple_entities\" AS \"test_simple_entities\" SET \"name\" = 'updatedName' WHERE \\(\"test_simple_entities\"\\.\"id\" = 333\\) RETURNING id,name$").
+					WillReturnRows(rows)
+			},
+			entity: &TestSimpleEnt{
+				ID:   333,
+				Name: "updatedName",
+			},
+			columns: []string{"id", "name"},
+			expected: func(t *testing.T, res *TestSimpleEnt, err error) {
+				assert.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subject := crudRepositoryShortTestSetUp(t)
+			repo := NewTestSimpleEntRepository(subject.conn)
+
+			tt.mock(subject.conn)
+			res, err := repo.UpdateOne(context.Background(), nil, tt.entity, tt.columns)
+			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+			tt.expected(t, res, err)
+		})
+	}
+}
+
+func TestBunCrudRepository_UpdateOneComplex(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     func(set *MockBunConnSet)
+		entity   *TestComplexEnt
+		columns  []string
+		expected func(t *testing.T, res *TestComplexEnt, err error)
+	}{
+		{
+			name: "update one",
+			mock: func(conn *MockBunConnSet) {
+				rows := sqlmock.NewRows([]string{"first_id", "second_id", "complex_name"}).AddRow(111, 222, "complex name")
+
+				conn.Mock.ExpectQuery("^UPDATE \"test_complex_entities\" AS \"test_complex_entities\" SET \"complex_name\" = 'complex name' WHERE \\(\"test_complex_entities\"\\.\"first_id\" = 111 AND \"test_complex_entities\"\\.\"second_id\" = 222\\) RETURNING first_id,second_id,name$").
+					WillReturnRows(rows)
+			},
+			entity: &TestComplexEnt{
+				FirstID:  111,
+				SecondID: 222,
+				Name:     "complex name",
+			},
+			columns: []string{"first_id", "second_id", "name"},
+			expected: func(t *testing.T, res *TestComplexEnt, err error) {
+				assert.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subject := crudRepositoryShortTestSetUp(t)
+			repo := NewTestComplexEntRepository(subject.conn)
+
+			tt.mock(subject.conn)
+			res, err := repo.UpdateOne(context.Background(), nil, tt.entity, tt.columns)
+			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+			tt.expected(t, res, err)
+		})
+	}
+}
+
+func TestBunCrudRepository_ForceDeleteWithSoftDeleteEntity(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     func(set *MockBunConnSet)
+		spec     dataset.Specifier
+		expected func(t *testing.T, res int, err error)
+	}{
+		{
+			name: "force delete",
+			mock: func(conn *MockBunConnSet) {
+				res := sqlmock.NewResult(0, 1)
+
+				conn.Mock.ExpectExec("^DELETE FROM \"test_soft_delete_entities\" AS \"test_soft_delete_entities\" WHERE \\(test_soft_delete_entities.id = 1\\)").
+					WillReturnResult(res)
+			},
+			spec: func() dataset.Specifier {
+				return dataspec.NewEqual("id", 1)
+			}(),
+			expected: func(t *testing.T, res int, err error) {
+				assert.NoError(t, err)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subject := crudRepositoryShortTestSetUp(t)
+			repo := NewTestSoftDeleteEntRepository(subject.conn)
+
+			tt.mock(subject.conn)
+			res, err := repo.ForceDelete(context.Background(), nil, tt.spec)
+			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+			tt.expected(t, res, err)
+		})
+	}
+}
+
+func TestBunCrudRepository_ForceDeleteWithSimpleEntity(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     func(set *MockBunConnSet)
+		spec     dataset.Specifier
+		expected func(t *testing.T, res int, err error)
+	}{
+		{
+			name: "force delete",
+			mock: func(conn *MockBunConnSet) {
+				res := sqlmock.NewResult(0, 1)
+
+				conn.Mock.ExpectExec("^DELETE FROM \"test_simple_entities\" AS \"test_simple_entities\" WHERE \\(test_simple_entities.id = 1\\)").
+					WillReturnResult(res)
+			},
+			spec: func() dataset.Specifier {
+				return dataspec.NewEqual("id", 1)
+			}(),
+			expected: func(t *testing.T, res int, err error) {
+				assert.NoError(t, err)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subject := crudRepositoryShortTestSetUp(t)
+			repo := NewTestSimpleEntRepository(subject.conn)
+
+			tt.mock(subject.conn)
+			res, err := repo.ForceDelete(context.Background(), nil, tt.spec)
+			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+			tt.expected(t, res, err)
+		})
+	}
+}
+
+func TestBunCrudRepository_DeleteWithSoftDeleteEntity(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     func(set *MockBunConnSet)
+		spec     dataset.Specifier
+		expected func(t *testing.T, res int, err error)
+	}{
+		{
+			name: "delete",
+			mock: func(conn *MockBunConnSet) {
+				res := sqlmock.NewResult(0, 1)
+
+				conn.Mock.ExpectExec("^UPDATE \"test_soft_delete_entities\" AS \"test_soft_delete_entities\" SET \"deleted_at\" = '.+' WHERE \\(test_soft_delete_entities.id = 1\\) AND \"test_soft_delete_entities\".\"deleted_at\" IS NULL").
+					WillReturnResult(res)
+			},
+			spec: func() dataset.Specifier {
+				return dataspec.NewEqual("id", 1)
+			}(),
+			expected: func(t *testing.T, res int, err error) {
+				assert.NoError(t, err)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subject := crudRepositoryShortTestSetUp(t)
+			repo := NewTestSoftDeleteEntRepository(subject.conn)
+
+			tt.mock(subject.conn)
+			res, err := repo.Delete(context.Background(), nil, tt.spec)
+			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+			tt.expected(t, res, err)
+		})
+	}
+}
+
+func TestBunCrudRepository_DeleteWithSimpleEntity(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     func(set *MockBunConnSet)
+		spec     dataset.Specifier
+		expected func(t *testing.T, res int, err error)
+	}{
+		{
+			name: "delete",
+			mock: func(conn *MockBunConnSet) {
+				res := sqlmock.NewResult(0, 1)
+
+				conn.Mock.ExpectExec("^DELETE FROM \"test_simple_entities\" AS \"test_simple_entities\" WHERE \\(test_simple_entities.id = 1\\)").
+					WillReturnResult(res)
+			},
+			spec: func() dataset.Specifier {
+				return dataspec.NewEqual("id", 1)
+			}(),
+			expected: func(t *testing.T, res int, err error) {
+				assert.NoError(t, err)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subject := crudRepositoryShortTestSetUp(t)
+			repo := NewTestSimpleEntRepository(subject.conn)
+
+			tt.mock(subject.conn)
+			res, err := repo.Delete(context.Background(), nil, tt.spec)
+			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+			tt.expected(t, res, err)
+		})
+	}
+}
+
+func TestBunCrudRepository_IsColumnValueUnique(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     func(set *MockBunConnSet)
+		column   string
+		value    string
+		expected func(t *testing.T, res bool, err error)
+	}{
+		{
+			name: "is column value unique",
+			mock: func(conn *MockBunConnSet) {
+				rows := sqlmock.NewRows([]string{"exists"}).AddRow(true)
+
+				conn.Mock.ExpectQuery("^SELECT EXISTS \\(SELECT \"test_simple_entities\".\"id\" FROM \"test_simple_entities\" WHERE \\(name = 'test'\\)\\)$").
+					WillReturnRows(rows)
+			},
+			column: "name",
+			value:  "test",
+			expected: func(t *testing.T, res bool, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, true, res)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subject := crudRepositoryShortTestSetUp(t)
+			repo := NewTestSimpleEntRepository(subject.conn)
+
+			tt.mock(subject.conn)
+			res, err := repo.IsColumnValueUnique(context.Background(), nil, tt.column, tt.value)
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
 			tt.expected(t, res, err)
 		})
