@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"crud-repository/connection"
+	"crud-repository/entrel"
 	"crud-repository/meta"
 	"database/sql"
 	"fmt"
@@ -125,11 +126,117 @@ func (r TestSoftDeleteEntMeta) Entity() metadata.Entity { return r.TestSoftDelet
 
 func (r TestSoftDeleteEntMeta) Relations() (relations map[string]metadata.Relation) { return }
 
+type TestItemEnt struct {
+	bun.BaseModel `bun:"table:test_items,alias:test_items"`
+
+	ID   int    `bun:"id,pk" json:"id"`
+	Name string `bun:"name" json:"name"`
+}
+
+func (r TestItemEnt) EntityName() string {
+	return "TestItemEnt"
+}
+
+func (r TestItemEnt) PrimaryKey() metadata.PrimaryKey {
+	return metadata.PrimaryKey{"id": r.ID}
+}
+
+type TestItemEntMeta struct {
+	TestItemEnt
+}
+
+func (r TestItemEntMeta) Entity() metadata.Entity { return r.TestItemEnt }
+
+func (r TestItemEntMeta) Relations() (relations map[string]metadata.Relation) { return }
+
+type TestCategoryEnt struct {
+	bun.BaseModel `bun:"table:test_categories,alias:test_categories"`
+
+	ID         int    `bun:"id,pk" json:"id"`
+	Name       string `bun:"name" json:"name"`
+	MainItemID int    `bun:"main_item_id" json:"mainItemId"`
+}
+
+func (r TestCategoryEnt) EntityName() string {
+	return "TestCategoryEnt"
+}
+
+func (r TestCategoryEnt) PrimaryKey() metadata.PrimaryKey {
+	return metadata.PrimaryKey{"id": r.ID}
+}
+
+type TestCategoryEntMeta struct {
+	TestCategoryEnt
+}
+
+func (r TestCategoryEntMeta) Entity() metadata.Entity { return r.TestCategoryEnt }
+
+func (r TestCategoryEntMeta) Relations() map[string]metadata.Relation {
+	relations := make(map[string]metadata.Relation)
+
+	relations["Items"] = entrel.ToMany{
+		Meta:      meta.Parser(TestItemEntMeta{}),
+		JoinTable: "test_items",
+		ViaTable:  "test_category_items",
+		JoinColumns: []entrel.JoinColumn{
+			{
+				Name:           "test_category_items.category_id",
+				ReferencedName: "test_categories.id",
+			},
+		},
+		InverseJoinColumns: []entrel.JoinColumn{
+			{
+				Name:           "item_id",
+				ReferencedName: "test_items.id",
+			},
+		},
+	}
+
+	relations["MainItem"] = entrel.ToOne{
+		Meta:      meta.Parser(TestItemEntMeta{}),
+		JoinTable: "test_items",
+		JoinColumns: []entrel.JoinColumn{
+			{
+				Name:           "main_item_id",
+				ReferencedName: "id",
+			},
+		},
+	}
+
+	return relations
+}
+
+type TestCategoryItemEnt struct {
+	bun.BaseModel `bun:"table:test_category_items,alias:test_category_items"`
+
+	ItemID     int `bun:"item_id,pk" json:"itemId"`
+	CategoryID int `bun:"category_id,pk" json:"categoryId"`
+}
+
+func (r TestCategoryItemEnt) EntityName() string {
+	return "TestCategoryItemEnt"
+}
+
+func (r TestCategoryItemEnt) PrimaryKey() metadata.PrimaryKey {
+	return metadata.PrimaryKey{"item_id": r.ItemID, "category_id": r.CategoryID}
+}
+
+type TestCategoryItemEntMeta struct {
+	TestCategoryItemEnt
+}
+
+func (r TestCategoryItemEntMeta) Entity() metadata.Entity { return r.TestCategoryItemEnt }
+
+func (r TestCategoryItemEntMeta) Relations() (relations map[string]metadata.Relation) { return }
+
 func NewEntities() metadata.EntityMetaContainer {
 	c := entmeta.NewContainer()
 	c.Add(TestSimpleEntMeta{}, meta.Parser)
 	c.Add(TestComplexEntMeta{}, meta.Parser)
 	c.Add(TestSoftDeleteEntMeta{}, meta.Parser)
+	c.Add(TestItemEntMeta{}, meta.Parser)
+	c.Add(TestCategoryEntMeta{}, meta.Parser)
+	c.Add(TestCategoryItemEntMeta{}, meta.Parser)
 
 	return c
 }
@@ -181,6 +288,23 @@ func NewTestSoftDeleteEntRepository(
 		BunCrudRepository[TestSoftDeleteEnt, bun.Tx]{
 			connSet: connSet,
 			Meta:    c.Get(TestSoftDeleteEnt{}.EntityName()),
+		},
+	}
+}
+
+type TestCategoryBunRepo struct {
+	BunCrudRepository[TestCategoryEnt, bun.Tx]
+}
+
+func NewTestCategoryEntRepository(
+	connSet connection.BunConnSet,
+) *TestCategoryBunRepo {
+	c := NewEntities()
+
+	return &TestCategoryBunRepo{
+		BunCrudRepository[TestCategoryEnt, bun.Tx]{
+			connSet: connSet,
+			Meta:    c.Get(TestCategoryEnt{}.EntityName()),
 		},
 	}
 }
@@ -590,6 +714,84 @@ func TestBunCrudRepository_FindPage(t *testing.T) {
 			tt.mock(subject.conn)
 
 			res, err := repo.FindPage(context.Background(), nil, []string{"*"}, nil, tt.page(), tt.sort)
+
+			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
+
+			tt.expected(t, res, err)
+		})
+	}
+}
+
+func TestBunCrudRepository_FindPageWithRelations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		mock     func(set *MockBunConnSet)
+		spec     func() dataset.Specifier
+		page     func() dataset.Pager
+		sort     Sort
+		expected func(t *testing.T, res []TestCategoryEnt, err error)
+	}{
+		{
+			name: "find page with many to many relations relation",
+			mock: func(conn *MockBunConnSet) {
+				rows := sqlmock.NewRows([]string{"id", "name"}).
+					AddRow(1, "testName1")
+
+				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_categories\" INNER JOIN test_category_items ON test_category_items.category_id = test_categories.id INNER JOIN test_items ON item_id = test_items.id WHERE \\(\"test_items\".\"name\" = 'John'\\) LIMIT 5$").
+					WillReturnRows(rows)
+			},
+			spec: func() dataset.Specifier {
+				return dataspec.NewEqual("Category.Items.name", "John")
+			},
+			page: func() dataset.Pager {
+				return NewPager(5, 0)
+			},
+			sort: NewSorter(),
+			expected: func(t *testing.T, res []TestCategoryEnt, err error) {
+				t.Helper()
+				assert.NoError(t, err)
+				assert.NotEmpty(t, res)
+				assert.Equal(t, 1, len(res))
+			},
+		},
+		{
+			name: "find page with one to one relations relation",
+			mock: func(conn *MockBunConnSet) {
+				rows := sqlmock.NewRows([]string{"id", "name"}).
+					AddRow(1, "testName1")
+
+				conn.Mock.ExpectQuery("^SELECT \\* FROM \"test_categories\" INNER JOIN test_items ON main_item_id = test_items.id WHERE \\(\"test_items\".\"name\" ILIKE 'Joh'\\) LIMIT 5$").
+					WillReturnRows(rows)
+			},
+			spec: func() dataset.Specifier {
+				return dataspec.NewILike("Category.MainItem.name", "Joh")
+			},
+			page: func() dataset.Pager {
+				return NewPager(5, 0)
+			},
+			sort: NewSorter(),
+			expected: func(t *testing.T, res []TestCategoryEnt, err error) {
+				t.Helper()
+				assert.NoError(t, err)
+				assert.NotEmpty(t, res)
+				assert.Equal(t, 1, len(res))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			subject := crudRepositoryShortTestSetUp(t)
+			repo := NewTestCategoryEntRepository(subject.conn)
+
+			tt.mock(subject.conn)
+
+			res, err := repo.FindPage(context.Background(), nil, []string{"*"}, tt.spec(), tt.page(), tt.sort)
 
 			assert.NoError(t, subject.conn.Mock.ExpectationsWereMet())
 
