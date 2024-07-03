@@ -1,4 +1,4 @@
-module crud-repository
+module github.com/aso779/crud-repository
 
 go 1.20
 
