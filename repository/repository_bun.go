@@ -2,9 +2,10 @@ package repository
 
 import (
 	"context"
-	"crud-repository/connection"
 	"fmt"
 	"strings"
+
+	"github.com/aso779/crud-repository/connection"
 
 	"github.com/aso779/go-ddd/domain/usecase/dataset"
 	"github.com/aso779/go-ddd/domain/usecase/metadata"

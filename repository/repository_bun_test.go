@@ -2,14 +2,15 @@ package repository
 
 import (
 	"context"
-	"crud-repository/connection"
-	"crud-repository/entrel"
-	"crud-repository/meta"
 	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/aso779/crud-repository/connection"
+	"github.com/aso779/crud-repository/entrel"
+	"github.com/aso779/crud-repository/meta"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/aso779/go-ddd/domain/usecase/dataset"
