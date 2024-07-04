@@ -253,7 +253,7 @@ func NewTestSimpleEntRepository(
 
 	return &TestSimpleEntBunRepo{
 		BunCrudRepository[TestSimpleEnt, bun.Tx]{
-			connSet: connSet,
+			ConnSet: connSet,
 			Meta:    c.Get(TestSimpleEnt{}.EntityName()),
 		},
 	}
@@ -270,7 +270,7 @@ func NewTestComplexEntRepository(
 
 	return &TestComplexEntBunRepo{
 		BunCrudRepository[TestComplexEnt, bun.Tx]{
-			connSet: connSet,
+			ConnSet: connSet,
 			Meta:    c.Get(TestComplexEnt{}.EntityName()),
 		},
 	}
@@ -287,7 +287,7 @@ func NewTestSoftDeleteEntRepository(
 
 	return &TestSoftDeleteEntBunRepo{
 		BunCrudRepository[TestSoftDeleteEnt, bun.Tx]{
-			connSet: connSet,
+			ConnSet: connSet,
 			Meta:    c.Get(TestSoftDeleteEnt{}.EntityName()),
 		},
 	}
@@ -304,7 +304,7 @@ func NewTestCategoryEntRepository(
 
 	return &TestCategoryBunRepo{
 		BunCrudRepository[TestCategoryEnt, bun.Tx]{
-			connSet: connSet,
+			ConnSet: connSet,
 			Meta:    c.Get(TestCategoryEnt{}.EntityName()),
 		},
 	}

@@ -14,7 +14,7 @@ import (
 )
 
 type BunCrudRepository[E metadata.Entity, T bun.Tx] struct {
-	connSet connection.BunConnSet
+	ConnSet connection.BunConnSet
 	Meta    metadata.Meta
 }
 
@@ -29,7 +29,7 @@ func (r BunCrudRepository[E, T]) FindOne(
 	var entity E
 
 	if tx == nil {
-		tx = r.connSet.ReadPool()
+		tx = r.ConnSet.ReadPool()
 	}
 
 	query := tx.
@@ -84,7 +84,7 @@ func (r BunCrudRepository[E, T]) FindAll(
 	var entities = make([]E, 0)
 
 	if tx == nil {
-		tx = r.connSet.ReadPool()
+		tx = r.ConnSet.ReadPool()
 	}
 
 	query := tx.
@@ -121,7 +121,7 @@ func (r BunCrudRepository[E, T]) FindPage(
 	var entities = make([]E, 0)
 
 	if tx == nil {
-		tx = r.connSet.ReadPool()
+		tx = r.ConnSet.ReadPool()
 	}
 
 	query := tx.
@@ -209,7 +209,7 @@ func (r BunCrudRepository[E, T]) Count(
 	var entity E
 
 	if tx == nil {
-		tx = r.connSet.ReadPool()
+		tx = r.ConnSet.ReadPool()
 	}
 
 	query := tx.
@@ -241,7 +241,7 @@ func (r BunCrudRepository[E, T]) CreateOne(
 	columns []string,
 ) (*E, error) {
 	if tx == nil {
-		tx = r.connSet.WritePool()
+		tx = r.ConnSet.WritePool()
 	}
 
 	_, err := tx.NewInsert().
@@ -265,7 +265,7 @@ func (r BunCrudRepository[E, T]) CreateAll(
 	columns []string,
 ) ([]E, error) {
 	if tx == nil {
-		tx = r.connSet.WritePool()
+		tx = r.ConnSet.WritePool()
 	}
 
 	_, err := tx.NewInsert().
@@ -290,7 +290,7 @@ func (r BunCrudRepository[E, T]) UpdateOne(
 	columns []string,
 ) (*E, error) {
 	if tx == nil {
-		tx = r.connSet.WritePool()
+		tx = r.ConnSet.WritePool()
 	}
 
 	_, err := tx.NewUpdate().
@@ -315,7 +315,7 @@ func (r BunCrudRepository[E, T]) ForceDelete(
 	var entity E
 
 	if tx == nil {
-		tx = r.connSet.WritePool()
+		tx = r.ConnSet.WritePool()
 	}
 
 	query := tx.NewDelete().
@@ -343,7 +343,7 @@ func (r BunCrudRepository[E, T]) Delete(
 	var entity E
 
 	if tx == nil {
-		tx = r.connSet.WritePool()
+		tx = r.ConnSet.WritePool()
 	}
 
 	query := tx.NewDelete().
@@ -371,7 +371,7 @@ func (r BunCrudRepository[E, T]) IsColumnValueUnique(
 	value any,
 ) (bool, error) {
 	if tx == nil {
-		tx = r.connSet.ReadPool()
+		tx = r.ConnSet.ReadPool()
 	}
 
 	exists, err := tx.
