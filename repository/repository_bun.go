@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aso779/crud-repository/connection"
+	"github.com/aso779/bun-pg-connector"
 
 	"github.com/aso779/go-ddd/domain/usecase/dataset"
 	"github.com/aso779/go-ddd/domain/usecase/metadata"
@@ -14,7 +14,7 @@ import (
 )
 
 type BunCrudRepository[E metadata.Entity, T bun.Tx] struct {
-	ConnSet connection.BunConnSet
+	ConnSet bunpgconnector.BunConnSet
 	Meta    metadata.Meta
 }
 

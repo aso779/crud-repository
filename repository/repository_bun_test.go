@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aso779/crud-repository/connection"
+	"github.com/aso779/bun-pg-connector"
 	"github.com/aso779/crud-repository/entrel"
 	"github.com/aso779/crud-repository/meta"
 
@@ -247,7 +247,7 @@ type TestSimpleEntBunRepo struct {
 }
 
 func NewTestSimpleEntRepository(
-	connSet connection.BunConnSet,
+	connSet bunpgconnector.BunConnSet,
 ) *TestSimpleEntBunRepo {
 	c := NewEntities()
 
@@ -264,7 +264,7 @@ type TestComplexEntBunRepo struct {
 }
 
 func NewTestComplexEntRepository(
-	connSet connection.BunConnSet,
+	connSet bunpgconnector.BunConnSet,
 ) *TestComplexEntBunRepo {
 	c := NewEntities()
 
@@ -281,7 +281,7 @@ type TestSoftDeleteEntBunRepo struct {
 }
 
 func NewTestSoftDeleteEntRepository(
-	connSet connection.BunConnSet,
+	connSet bunpgconnector.BunConnSet,
 ) *TestSoftDeleteEntBunRepo {
 	c := NewEntities()
 
@@ -298,7 +298,7 @@ type TestCategoryBunRepo struct {
 }
 
 func NewTestCategoryEntRepository(
-	connSet connection.BunConnSet,
+	connSet bunpgconnector.BunConnSet,
 ) *TestCategoryBunRepo {
 	c := NewEntities()
 
@@ -471,7 +471,6 @@ func TestBunCrudRepository_FindOneByPk(t *testing.T) {
 		mock     func(set *MockBunConnSet)
 		expected func(t *testing.T, res *TestComplexEnt, err error)
 	}{
-		// TODO pass
 		{
 			name: "find one by composite pk with single row result",
 			mock: func(conn *MockBunConnSet) {
